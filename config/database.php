@@ -98,6 +98,20 @@ return [
             'sslmode' => 'prefer',
         ],
 
+        'nextcloud' => [
+        'driver' => 'pgsql',
+        'host' => env('DB_HOST', '127.0.0.1'),
+        'port' => env('DB_PORT', '5432'),
+        'database' => env('DB_DATABASE', 'nextcloud'),
+        'username' => env('DB_USERNAME', 'ncuser'),
+        'password' => env('DB_PASSWORD', 'SuperClavePostgres123'),
+        'charset' => 'utf8',
+        'prefix' => '',
+        'prefix_indexes' => true,
+        'search_path' => 'public',
+        'sslmode' => 'prefer',
+        ],
+
         'sqlsrv' => [
             'driver' => 'sqlsrv',
             'url' => env('DB_URL'),
