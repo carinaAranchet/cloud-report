@@ -116,9 +116,14 @@ document.addEventListener("DOMContentLoaded", async function () {
             return;
         }
         data.forEach(row => {
-            const badgeClass =
-                row.estado === 'OK' ? 'bg-success' :
-                row.estado === 'MAL' ? 'bg-danger' : 'bg-warning';
+
+                const estados = {
+                OK: "bg-success",
+                Mal: "bg-danger",
+                VACÍO: "bg-primary"
+                };
+
+            const badgeClass = estados[row.estado] || "bg-warning";
             tbody.insertAdjacentHTML('beforeend', `
                 <tr>
                     <td>${row.proveedor ?? ''}</td>
