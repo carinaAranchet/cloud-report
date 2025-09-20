@@ -28,7 +28,6 @@ class MarkObrasSanitariasHistorico extends Command
     {
        $root = 'files/Proveedores habituales';
 
-        // Buscar ID de la etiqueta "Histórico"
         $tagId = DB::connection('nextcloud')
             ->table('oc_systemtag')
             ->where('name', 'Histórico')
@@ -39,11 +38,6 @@ class MarkObrasSanitariasHistorico extends Command
             return;
         }
 
-        // Calcular cutoff: comienzo de la semana actual (lunes 00:00)
-
-        // Seleccionar archivos en Obras sanitarias que:
-        // - tengan alguna etiqueta distinta de Histórico
-        // - y sean anteriores al lunes actual
         $archivos = DB::connection('nextcloud')
             ->table('oc_filecache as f')
             ->join('oc_systemtag_object_mapping as m', DB::raw('m.objectid::bigint'), '=', 'f.fileid')
@@ -58,7 +52,7 @@ class MarkObrasSanitariasHistorico extends Command
         $count = 0;
 
         foreach ($archivos as $a) {
-            // Insertar la etiqueta Histórico si no existe ya
+            // Inserto la etiqueta Histórico si no existe
             DB::connection('nextcloud')
                 ->table('oc_systemtag_object_mapping')
                 ->updateOrInsert(

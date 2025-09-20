@@ -42,7 +42,7 @@ class ReporteController extends Controller
 
         $meses = collect(self::MESES_ES)->map(fn($v,$k)=>['value'=>$k,'label'=>$v])->values();
 
-        // Estados disponibles
+
         $estados = [
             ['value'=>'OK',           'label'=>'OK'],
             ['value'=>'MAL',          'label'=>'Mal'],
