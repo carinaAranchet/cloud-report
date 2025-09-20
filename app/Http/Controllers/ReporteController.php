@@ -67,11 +67,9 @@ public function data(Request $request) {
 
     $mesNombre = self::MESES_ES[$mesNum] ?? null;
 
-    // Lista fija de meses para usar en SQL
     $MESES_SQL = "'Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'";
 
-    // -------- 1) SUBQUERY: CARPETAS (periodos reales existentes) --------
-    // a) Meses en nivel 5
+    // -------- 1) SUBQUERY: CARPETAS --------
     $qMes5 = DB::connection('nextcloud')
         ->table('oc_filecache as f')
         ->join('oc_mimetypes as mt', 'mt.id', '=', 'f.mimetype')
@@ -85,7 +83,6 @@ public function data(Request $request) {
         ->whereRaw("split_part(f.path,'/',5) IN ($MESES_SQL)")
         ->whereRaw("split_part(f.path,'/',4) <> ''");
 
-    // b) Meses en nivel 6 (casos como .../931/Enero/...)
     $qMes6 = DB::connection('nextcloud')
         ->table('oc_filecache as f')
         ->join('oc_mimetypes as mt', 'mt.id', '=', 'f.mimetype')
@@ -97,10 +94,8 @@ public function data(Request $request) {
         ->where('f.path','like', "$root/%")
         ->where('mt.mimetype', 'httpd/unix-directory')
         ->whereRaw("split_part(f.path,'/',6) IN ($MESES_SQL)")
-        ->whereRaw("split_part(f.path,'/',4) <> ''")
-;
+        ->whereRaw("split_part(f.path,'/',4) <> ''");
 
-    // c) ANUAL sólo si NO existen carpetas de meses (ni nivel 5 ni nivel 6) para ese prov+tram
     $qAnual = DB::connection('nextcloud')
         ->table('oc_filecache as f')
         ->join('oc_mimetypes as mt', 'mt.id', '=', 'f.mimetype')
@@ -111,7 +106,7 @@ public function data(Request $request) {
         ")
         ->where('f.path','like', "$root/%")
         ->where('mt.mimetype', 'httpd/unix-directory')
-        ->whereRaw("split_part(f.path,'/',5) = ''") // carpeta del trámite
+        ->whereRaw("split_part(f.path,'/',5) = ''")
         ->whereRaw("split_part(f.path,'/',4) <> ''")
         ->whereNotExists(function($nx) use ($root, $MESES_SQL) {
             $nx->select(DB::raw(1))
@@ -119,14 +114,11 @@ public function data(Request $request) {
                ->join('oc_mimetypes as mt2', 'mt2.id', '=', 'f2.mimetype')
                ->where('f2.path','like', "$root/%")
                ->where('mt2.mimetype', 'httpd/unix-directory')
-               // mismo proveedor/trámite
                ->whereRaw("split_part(f2.path,'/',3) = split_part(f.path,'/',3)")
                ->whereRaw("split_part(f2.path,'/',4) = split_part(f.path,'/',4)")
-               // existe al menos una carpeta de mes en nivel 5 o 6
                ->whereRaw("(split_part(f2.path,'/',5) IN ($MESES_SQL) OR split_part(f2.path,'/',6) IN ($MESES_SQL))");
         });
 
-    // Filtros opcionales para cada rama
     foreach ([$qMes5, $qMes6, $qAnual] as $q) {
         if ($proveedor !== '') {
             $q->whereRaw("LOWER(split_part(f.path,'/',3)) = LOWER(?)", [$proveedor]);
@@ -136,19 +128,14 @@ public function data(Request $request) {
         }
     }
     if ($mesNombre) {
-        // Si filtran por mes, sólo tiene sentido en ramas mensuales
         $qMes5->whereRaw("split_part(f.path,'/',5) = ?", [$mesNombre]);
         $qMes6->whereRaw("split_part(f.path,'/',6) = ?", [$mesNombre]);
-        // Si filtran un mes puntual, ANUAL no aplica, forzamos a no devolver nada:
         $qAnual->whereRaw("1=0");
     }
 
-    // Unimos las tres (mes5 ∪ mes6 ∪ anual)
     $carpetas = $qMes5->unionAll($qMes6)->unionAll($qAnual);
 
-    // -------- 2) SUBQUERY: ESTADOS (sólo archivos con etiquetas) --------
-    // Normalizamos el "mes" detectando nivel 5 o 6; si ninguno es mes => 'ANUAL'
-    // Estado por prioridad: MAL (1) > En revisión (2) > OK (3); devolvemos el nombre tal cual (array_agg ... )[1]
+    // -------- 2) SUBQUERY: ESTADOS --------
     $estados = DB::connection('nextcloud')
         ->table('oc_filecache as f')
         ->join('oc_systemtag_object_mapping as m', DB::raw('m.objectid::bigint'), '=', 'f.fileid')
@@ -163,16 +150,23 @@ public function data(Request $request) {
             END as mes,
             (array_agg(t.name ORDER BY
                 CASE
-                    WHEN t.name ILIKE 'MAL'           THEN 1
-                    WHEN t.name ILIKE 'En revisión'   THEN 2
-                    WHEN t.name ILIKE 'En revision'   THEN 2
-                    WHEN t.name ILIKE 'OK'            THEN 3
+                    WHEN t.name ILIKE 'MAL'         THEN 1
+                    WHEN t.name ILIKE 'En revisión' THEN 2
+                    WHEN t.name ILIKE 'En revision' THEN 2
+                    WHEN t.name ILIKE 'OK'          THEN 3
                     ELSE 99
                 END
             ))[1] as estado
         ")
         ->where('f.path','like', "$root/%")
         ->whereRaw("split_part(f.path,'/',4) <> ''")
+        ->whereNotExists(function($q) {
+            $q->select(DB::raw(1))
+              ->from('oc_systemtag_object_mapping as m2')
+              ->join('oc_systemtag as t2','t2.id','=','m2.systemtagid')
+              ->whereRaw('m2.objectid::bigint = f.fileid')
+              ->where('t2.name','=','Histórico');
+        })
         ->groupByRaw("split_part(f.path,'/',3), split_part(f.path,'/',4),
                      CASE
                        WHEN split_part(f.path,'/',5) IN ($MESES_SQL) THEN split_part(f.path,'/',5)
@@ -194,7 +188,7 @@ public function data(Request $request) {
             END) = ?", [$mesNombre]);
     }
 
-    // -------- 3) JOIN: carpetas ∴ estados (VACÍO cuando no matchea) --------
+    // -------- 3) JOIN --------
     $query = DB::connection('nextcloud')
         ->query()
         ->fromSub($carpetas, 'c')
@@ -222,7 +216,6 @@ public function data(Request $request) {
         if (mb_strtoupper($estadoReq) === 'VACÍO') {
             $query->whereRaw("e.estado IS NULL");
         } else {
-            // Comparación case-insensitive por si las etiquetas tienen may/min o acentos distintos
             $query->whereRaw("e.estado ILIKE ?", [$estadoReq]);
         }
     }
