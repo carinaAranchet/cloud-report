@@ -34,5 +34,13 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
+    'oidc' => [
+        'client_id'     => env('OIDC_CLIENT_ID'),
+        'client_secret' => env('OIDC_CLIENT_SECRET'),
+        'redirect'      => env('OIDC_REDIRECT_URI'),
+        'authorize_url' => env('OIDC_AUTHORIZE_URL'),
+        'token_url'     => env('OIDC_TOKEN_URL'),
+        'userinfo_url'  => env('OIDC_USERINFO_URL'),
+    ],
 
 ];

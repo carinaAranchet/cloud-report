@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ReporteController extends Controller
 {
@@ -45,8 +46,8 @@ class ReporteController extends Controller
         // Estados disponibles
         $estados = [
             ['value'=>'OK',           'label'=>'OK'],
-            ['value'=>'MAL',          'label'=>'Mal'],
-            ['value'=>'En revisión',  'label'=>'En revisión'],
+            ['value'=>'MAL',          'label'=>'MAL'],
+            ['value'=>'En revisión',  'label'=>'En Revisión'],
         ];
 
         return response()->json([
@@ -74,7 +75,7 @@ class ReporteController extends Controller
             ->join('oc_systemtag as t', 't.id', '=', 'm.systemtagid')
             ->where('f.path','like', "$root/%");
 
-
+        Log::info('Base query: '.$base->toSql(), $base->getBindings());
         // Filtros opcionales
         if ($proveedor !== '') {
             $base->whereRaw("LOWER(split_part(f.path,'/',3)) = LOWER(?)", [$proveedor]);
@@ -98,7 +99,7 @@ class ReporteController extends Controller
             ELSE 'ANUAL'
         END as mes,
         CASE
-            WHEN bool_or(t.name = 'Mal') THEN 'MAL'
+            WHEN bool_or(t.name = 'MAL') THEN 'MAL'
             WHEN bool_or(t.name = 'OK')  THEN 'OK'
             ELSE 'En revisión'
         END as estado
@@ -110,7 +111,7 @@ class ReporteController extends Controller
 
         if (in_array($estado, ['OK','MAL','En revisión'], true)) {
     $query->havingRaw("CASE
-            WHEN bool_or(t.name = 'Mal') THEN 'MAL'
+            WHEN bool_or(t.name = 'MAL') THEN 'MAL'
             WHEN bool_or(t.name = 'OK')  THEN 'OK'
             ELSE 'En revisión'
         END = ?", [$estado]);
